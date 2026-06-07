@@ -1,6 +1,5 @@
 from ingestion import load_pdfs, split_into_chunks, store_in_chromadb
-from retrieval import retrieve
-from generation import generate_answer
+from generation import run_agent
 
 # 1. Setup
 
@@ -21,8 +20,7 @@ while True:
         print("Goodbye!")
         break
 
-    relevant_chunks = retrieve(question, collection)
-    answer = generate_answer(question, relevant_chunks, chat_history)
+    answer = run_agent(question, collection, chat_history)
 
     chat_history.append({"role": "user", "content": question})
     chat_history.append({"role": "assistant", "content": answer})

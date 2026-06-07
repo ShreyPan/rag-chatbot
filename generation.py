@@ -1,25 +1,77 @@
-import ollama
+import ollama  # type: ignore
+import json
 
 
-def generate_answer(question, relevant_chunks, chat_history):
-    context = "\n\n".join(relevant_chunks)
+def run_agent(question, collection, chat_history):
+    from tools import search_documents, search_web
 
-    system_prompt = f"""You are a helpful assistant. You will be given some context retrieved from documents and a question.
+    tools = [
+        {
+            "type": "function",
+            "function": {
+                "name": "search_documents",
+                "description": "ALWAYS use this tool first for any question about a person, their projects, experience, skills, education, or work history. Searches the loaded PDF documents.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "The search query"
+                        }
+                    },
+                    "required": ["query"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "search_web",
+                "description": "Use this tool ONLY for general knowledge questions, definitions of concepts, or current events that would NOT be found in a personal document like a resume.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "The search query"
+                        }
+                    },
+                    "required": ["query"]
+                }
+            }
+        }
+    ]
 
-    If the context contains relevant information to answer the question, use it to answer.
-    If the context is not relevant to the question, answer from your general knowledge.
-    Never mention that you are using context or general knowledge in your answer.
-
-    Context:
-    {context}"""
-
-    messages = [{"role": "system", "content": system_prompt}]
+    # Build messages with history
+    messages = [
+        {"role": "system", "content": "You are a helpful assistant. You have access to two tools: search_documents and search_web. ALWAYS use search_documents first for ANY question that could be about a person, their work, or a named project. Only use search_web for pure concept definitions or current events."}
+    ]
     messages += chat_history
     messages.append({"role": "user", "content": question})
 
-    response = ollama.chat(
-        model="llama3.2",
-        messages=messages
-    )
+    # ReAct loop
 
-    return response["message"]["content"]
+    while True:
+        response = ollama.chat(
+            model="llama3.2",
+            messages=messages,
+            tools=tools
+        )
+
+        if not response.message.tool_calls:
+            return response.message.content
+
+        for tool_call in response.message.tool_calls:
+            tool_name = tool_call.function.name
+            tool_args = tool_call.function.arguments
+            print(f"[Agent calling tool: {tool_name}]")
+
+            if tool_name == "search_documents":
+                result = search_documents(tool_args["query"], collection)
+            elif tool_name == "search_web":
+                result = search_web(tool_args["query"])
+            else:
+                result = "Tool not found."
+
+            messages.append(response.message)
+            messages.append({"role": "tool", "content": result})
