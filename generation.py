@@ -44,7 +44,7 @@ def run_agent(question, collection, chat_history):
 
     # Build messages with history
     messages = [
-        {"role": "system", "content": "You are a helpful assistant. You have access to two tools: search_documents and search_web. ALWAYS use search_documents first for ANY question that could be about a person, their work, or a named project. Only use search_web for pure concept definitions or current events."}
+        {"role": "system", "content": "You are a helpful assistant. You have access to two tools: search_documents and search_web. ALWAYS use search_documents first for ANY question that could be about a person, their work, or a named project. Only use search_web for pure concept definitions or current events. When answering from documents, always mention the source file at the end of your answer."}
     ]
     messages += chat_history
     messages.append({"role": "user", "content": question})

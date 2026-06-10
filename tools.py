@@ -1,13 +1,24 @@
 from ddgs import DDGS  # type: ignore
-from retrieval import retrieve
 
 
 def search_documents(query, collection):
     try:
-        chunks = retrieve(query, collection)
-        if not chunks:
+        results = collection.query(
+            query_texts=[query],
+            n_results=3,
+            include=["documents", "metadatas"]
+        )
+
+        if not results["documents"][0]:
             return "No relevant information found in documents."
-        return "\n\n".join(chunks)
+
+        formatted = ""
+        for doc, meta in zip(results["documents"][0], results["metadatas"][0]):
+            source = meta.get("source", "unknown")
+            formatted += f"[Source: {source}]\n{doc}\n\n"
+
+        return formatted
+
     except Exception as e:
         return f"Error searching documents: {e}"
 
@@ -16,9 +27,6 @@ def search_web(query):
     try:
         with DDGS() as ddgs:
             results = ddgs.text(query, max_results=3)
-
-        if not results:
-            return "No results found."
 
         if not results:
             return "No results found."
