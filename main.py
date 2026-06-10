@@ -3,9 +3,9 @@ from generation import run_agent
 
 # 1. Setup
 
-docs = load_pdfs("docs")
-chunks = split_into_chunks(docs)
-collection = store_in_chromadb(chunks)
+files = load_pdfs("docs")
+chunks_by_file = split_into_chunks(files)
+collection = store_in_chromadb(chunks_by_file)
 
 # 2. Chat loop
 

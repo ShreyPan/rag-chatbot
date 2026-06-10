@@ -7,32 +7,49 @@ from pypdf import PdfReader
 
 
 def load_pdfs(folder_path):
-    all_text = []
+    # returns a dict: {filename: full_text} instead of a flat list
+    files = {}
 
     for filename in os.listdir(folder_path):
         if filename.endswith(".pdf"):
             path = os.path.join(folder_path, filename)
             reader = PdfReader(path)
 
+            # join all pages into one string, fixes page boundary problem
+            pages = []
             for page in reader.pages:
                 text = page.extract_text()
                 if text:
-                    all_text.append(text)
+                    pages.append(text)
 
+            files[filename] = "\n".join(pages)
             print(f"Loaded: {filename}")
-    return all_text
+
+    return files
 
 
-def split_into_chunks(pages):
+def split_into_chunks(files):
+    # returns a dict: {filename: [chunks]}
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=500,
         chunk_overlap=50
     )
-    chunks = splitter.create_documents(pages)
-    return chunks
+
+    chunks_by_file = {}
+    for filename, text in files.items():
+        chunks_by_file[filename] = splitter.create_documents([text])
+
+    return chunks_by_file
 
 
-def store_in_chromadb(chunks):
+def get_ingested_files(collection):
+    existing = collection.get()["ids"]
+    if not existing:
+        return set()
+    return set(id.split("_chunk_")[0] for id in existing)
+
+
+def store_in_chromadb(chunks_by_file):
     client = chromadb.PersistentClient(path="chroma_store")
 
     embedding_fn = OllamaEmbeddingFunction(
@@ -45,16 +62,19 @@ def store_in_chromadb(chunks):
         embedding_function=embedding_fn
     )
 
-    if collection.count() > 0:
-        print(
-            f"Collection already has {collection.count()} chunks, skipping embedding")
-        return collection
+    ingested = get_ingested_files(collection)
 
-    for i, chunk in enumerate(chunks):
-        collection.add(
-            documents=[chunk.page_content],
-            ids=[f"chunk_{i}"]
-        )
+    for filename, chunks in chunks_by_file.items():
+        if filename in ingested:
+            print(f"Already ingested: {filename}, skipping")
+            continue
 
-    print(f"Stored {len(chunks)} chunks in ChromaDB")
+        for i, chunk in enumerate(chunks):
+            collection.add(
+                documents=[chunk.page_content],
+                ids=[f"{filename}_chunk_{i}"],
+                metadatas=[{"source": filename, "chunk": i}]
+            )
+        print(f"Ingested: {filename} ({len(chunks)} chunks)")
+
     return collection
