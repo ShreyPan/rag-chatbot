@@ -50,13 +50,18 @@ def run_agent(question, collection, chat_history):
     messages.append({"role": "user", "content": question})
 
     # ReAct loop
-
-    while True:
-        response = ollama.chat(
-            model="llama3.2",
-            messages=messages,
-            tools=tools
-        )
+    max_iterations = 5
+    iteration = 0
+    while iteration < max_iterations:
+        iteration += 1
+        try:
+            response = ollama.chat(
+                model="llama3.2",
+                messages=messages,
+                tools=tools
+            )
+        except Exception as e:
+            return f"Error communicating with Ollama: {e}. Make sure Ollama is running."
 
         if not response.message.tool_calls:
             return response.message.content
@@ -75,3 +80,4 @@ def run_agent(question, collection, chat_history):
 
             messages.append(response.message)
             messages.append({"role": "tool", "content": result})
+    return "Sorry, I was unable to find an satisfactory answer after multiple attempts. Please try rephrasing your question."

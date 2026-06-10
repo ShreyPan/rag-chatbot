@@ -7,11 +7,22 @@ from pypdf import PdfReader
 
 
 def load_pdfs(folder_path):
-    # returns a dict: {filename: full_text} instead of a flat list
+
     files = {}
 
-    for filename in os.listdir(folder_path):
-        if filename.endswith(".pdf"):
+    if not os.path.exists(folder_path):
+        print(f"Warning: Folder '{folder_path}' does not exist. Creating it.")
+        os.makedirs(folder_path)
+        return files
+
+    pdf_files = [f for f in os.listdir(folder_path) if f.endswith(".pdf")]
+
+    if not pdf_files:
+        print(f"Warning: No PDF files found in '{folder_path}'.")
+        return files
+
+    for filename in pdf_files:
+        try:
             path = os.path.join(folder_path, filename)
             reader = PdfReader(path)
 
@@ -24,6 +35,8 @@ def load_pdfs(folder_path):
 
             files[filename] = "\n".join(pages)
             print(f"Loaded: {filename}")
+        except Exception as e:
+            print(f"Error loading {filename}: {e}, skipping.")
 
     return files
 
@@ -50,31 +63,37 @@ def get_ingested_files(collection):
 
 
 def store_in_chromadb(chunks_by_file):
-    client = chromadb.PersistentClient(path="chroma_store")
+    try:
+        client = chromadb.PersistentClient(path="chroma_store")
 
-    embedding_fn = OllamaEmbeddingFunction(
-        model_name="nomic-embed-text",
-        url="http://localhost:11434/api/embeddings"
-    )
+        embedding_fn = OllamaEmbeddingFunction(
+            model_name="nomic-embed-text",
+            url="http://localhost:11434/api/embeddings"
+        )
 
-    collection = client.get_or_create_collection(
-        name="documents",
-        embedding_function=embedding_fn
-    )
+        collection = client.get_or_create_collection(
+            name="documents",
+            embedding_function=embedding_fn
+        )
 
-    ingested = get_ingested_files(collection)
+        ingested = get_ingested_files(collection)
 
-    for filename, chunks in chunks_by_file.items():
-        if filename in ingested:
-            print(f"Already ingested: {filename}, skipping")
-            continue
+        for filename, chunks in chunks_by_file.items():
+            if filename in ingested:
+                print(f"Already ingested: {filename}, skipping")
+                continue
 
-        for i, chunk in enumerate(chunks):
-            collection.add(
-                documents=[chunk.page_content],
-                ids=[f"{filename}_chunk_{i}"],
-                metadatas=[{"source": filename, "chunk": i}]
-            )
-        print(f"Ingested: {filename} ({len(chunks)} chunks)")
+            for i, chunk in enumerate(chunks):
+                collection.add(
+                    documents=[chunk.page_content],
+                    ids=[f"{filename}_chunk_{i}"],
+                    metadatas=[{"source": filename, "chunk": i}]
+                )
+            print(f"Ingested: {filename} ({len(chunks)} chunks)")
 
-    return collection
+        return collection
+
+    except Exception as e:
+        print(f"Error connecting to ChromaDB or Ollama: {e}")
+        print("Make sure Ollama is running: run 'ollama serve' in a separate terminal.")
+        exit(1)
