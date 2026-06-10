@@ -1,6 +1,8 @@
 import ollama  # type: ignore
 import json
 
+from config import LLM_MODEL, MAX_ITERATIONS
+
 
 def run_agent(question, collection, chat_history):
     from tools import search_documents, search_web
@@ -50,13 +52,13 @@ def run_agent(question, collection, chat_history):
     messages.append({"role": "user", "content": question})
 
     # ReAct loop
-    max_iterations = 5
+    max_iterations = MAX_ITERATIONS
     iteration = 0
     while iteration < max_iterations:
         iteration += 1
         try:
             response = ollama.chat(
-                model="llama3.2",
+                model=LLM_MODEL,
                 messages=messages,
                 tools=tools
             )

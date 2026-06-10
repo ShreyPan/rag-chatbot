@@ -5,6 +5,8 @@ from chromadb.utils.embedding_functions import OllamaEmbeddingFunction
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from pypdf import PdfReader
 
+from config import CHROMA_PATH, CHUNK_OVERLAP, CHUNK_SIZE, COLLECTION_NAME, EMBEDDING_MODEL, OLLAMA_URL
+
 
 def load_pdfs(folder_path):
 
@@ -44,8 +46,8 @@ def load_pdfs(folder_path):
 def split_into_chunks(files):
     # returns a dict: {filename: [chunks]}
     splitter = RecursiveCharacterTextSplitter(
-        chunk_size=500,
-        chunk_overlap=50
+        chunk_size=CHUNK_SIZE,
+        chunk_overlap=CHUNK_OVERLAP
     )
 
     chunks_by_file = {}
@@ -64,15 +66,15 @@ def get_ingested_files(collection):
 
 def store_in_chromadb(chunks_by_file):
     try:
-        client = chromadb.PersistentClient(path="chroma_store")
+        client = chromadb.PersistentClient(path=CHROMA_PATH)
 
         embedding_fn = OllamaEmbeddingFunction(
-            model_name="nomic-embed-text",
-            url="http://localhost:11434/api/embeddings"
+            model_name=EMBEDDING_MODEL,
+            url=OLLAMA_URL
         )
 
         collection = client.get_or_create_collection(
-            name="documents",
+            name=COLLECTION_NAME,
             embedding_function=embedding_fn
         )
 
